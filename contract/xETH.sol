@@ -486,36 +486,72 @@ contract XplosiveEthereum is Ownable {
     *      Where DeviationFromTargetRate is (MarketOracleRate - targetRate) / targetRate
     *      and targetRate is CpiOracleRate / baseCpi
     */
-    function rebase(
-        uint256 epoch,
-        uint256 indexDelta,
-        bool positive
-    )
+    
+   function setRebaseLag(uint256 rebaseLag_)
         external
-        onlyRebaser
-        returns (uint256)
+        onlyOwner
     {
-        if (indexDelta == 0 || !positive) {
-          emit Rebase(epoch, xETHScalingFactor);
-          return _totalSupply;
-        }
-
-            uint256 newScalingFactor = xETHScalingFactor.mul(BASE.add(indexDelta)).div(BASE);
-            if (newScalingFactor < _maxScalingFactor()) {
-                xETHScalingFactor = newScalingFactor;
-            } else {
-              xETHScalingFactor = _maxScalingFactor();
-            }
-        
-
-        _totalSupply = ((initSupply.sub(_xETHBalances[address(0)]).sub(_xETHBalances[noRebaseAddress]))
-                        .mul(xETHScalingFactor).div(internalDecimals))
-                        .add(_xETHBalances[noRebaseAddress].mul(BASE).div(internalDecimals));
-        emit Rebase(epoch, xETHScalingFactor);
-        return _totalSupply;
+        require(rebaseLag_ > 0);
+        rebaseLag = rebaseLag_;
     }
-}
 
+    /**
+     * @notice Sets the parameters which control the timing and frequency of
+     *         rebase operations.
+     *         a) the minimum time period that must elapse between rebase cycles.
+     *         b) the rebase window offset parameter.
+     *         c) the rebase window length parameter.
+     * @param minRebaseTimeIntervalSec_ More than this much time must pass between rebase
+     *        operations, in seconds.
+     * @param rebaseWindowOffsetSec_ The number of seconds from the beginning of
+              the rebase interval, where the rebase window begins.
+     * @param rebaseWindowLengthSec_ The length of the rebase window in seconds.
+     */
+
+    function setRebaseTimingParameters(
+        uint256 minRebaseTimeIntervalSec_,
+        uint256 rebaseWindowOffsetSec_,
+        uint256 rebaseWindowLengthSec_)
+        external
+        onlyOwner
+    {
+        require(minRebaseTimeIntervalSec_ > 0);
+        require(rebaseWindowOffsetSec_ < minRebaseTimeIntervalSec_);
+
+        minRebaseTimeIntervalSec = minRebaseTimeIntervalSec_;
+        rebaseWindowOffsetSec = rebaseWindowOffsetSec_;
+        rebaseWindowLengthSec = rebaseWindowLengthSec_;
+    }
+
+    function initialize(address owner_, xETH xeths_, uint256 baseCpi_)
+        public
+        initializer
+    {
+        Ownable.initialize(owner_);
+
+        // deviationThreshold = 0.05e18 = 5e16
+        deviationThreshold = 5 * 10 ** (DECIMALS-2);
+
+        rebaseLag = 30;
+        minRebaseTimeIntervalSec = 1 days;
+        rebaseWindowOffsetSec = 43200;  // 00:00 UTC
+        lastRebaseTimestampSec = 0;
+        epoch = 0;
+
+        xeths = xeths_;
+        baseCpi = baseCpi_;
+    }
+
+    /**
+     * @return If the latest block timestamp is within the rebase time window it, returns true.
+     *         Otherwise, returns false.
+     */
+    function inRebaseWindow() public view returns (bool) {
+        return (
+            now.mod(minRebaseTimeIntervalSec) >= rebaseWindowOffsetSec &&
+            now.mod(minRebaseTimeIntervalSec) < (rebaseWindowOffsetSec.add(rebaseWindowLengthSec))
+        );
+    }
     
 library SafeMath {
 
