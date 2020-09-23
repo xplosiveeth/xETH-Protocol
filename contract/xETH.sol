@@ -532,8 +532,8 @@ contract XplosiveEthereum is Ownable {
         // deviationThreshold = 0.05e18 = 5e16
         deviationThreshold = 5 * 10 ** (DECIMALS-2);
 
-        rebaseLag = 30;
-        minRebaseTimeIntervalSec = 1 days;
+        rebaseLag = 1/5;
+        minRebaseTimeIntervalSec = 5 days;
         rebaseWindowOffsetSec = 43200;  // 00:00 UTC
         lastRebaseTimestampSec = 0;
         epoch = 0;
